@@ -12,46 +12,63 @@ The system consists of two main entities:
 
 ```plantuml
 @startuml
-!define ENTITY entity
-!define PK <color:red><b>PK</b></color>
-!define FK <color:blue><b>FK</b></color>
-!define UK <color:green><b>UK</b></color>
-!define NN <color:orange><b>NN</b></color>
+skinparam linetype ortho
 
-ENTITY User {
-  PK id : UINT <<generated>>
-  UK email : VARCHAR(255) NN
-  password : VARCHAR(255) NN
-  first_name : VARCHAR(255) NN
-  last_name : VARCHAR(255) NN
-  phone_number : VARCHAR(255)
-  dob : DATETIME
-  UK lbk_code : VARCHAR(255) NN
-  point_balance : UINT <<default: 0>>
-  created_at : DATETIME NN
-  updated_at : DATETIME NN
+class User {
+  +id: UINT {PK}
+  --
+  email: VARCHAR(255) {UK}
+  password: VARCHAR(255)
+  first_name: VARCHAR(255)
+  last_name: VARCHAR(255)
+  phone_number: VARCHAR(255)
+  dob: DATETIME
+  lbk_code: VARCHAR(255) {UK}
+  point_balance: UINT
+  created_at: DATETIME
+  updated_at: DATETIME
 }
 
-ENTITY Transfer {
-  PK id : UINT <<generated>>
-  FK from_user_id : UINT NN
-  FK to_user_id : UINT NN
-  amount : UINT NN
-  message : TEXT
-  status : VARCHAR(50) <<default: 'completed'>>
-  created_at : DATETIME NN
-  updated_at : DATETIME NN
+class Transfer {
+  +id: UINT {PK}
+  --
+  from_user_id: UINT {FK}
+  to_user_id: UINT {FK}
+  amount: UINT
+  message: TEXT
+  status: VARCHAR(50)
+  created_at: DATETIME
+  updated_at: DATETIME
 }
 
 User ||--o{ Transfer : "from_user_id"
 User ||--o{ Transfer : "to_user_id"
 
-note top of User : Primary entity for user management\nStores authentication data and point balances
-note top of Transfer : Transaction log for point transfers\nAudit trail with complete transfer history
+note top of User
+  Primary user entity
+  - Unique email and LBK code
+  - Manages point balances
+  - Authentication data
+end note
 
-note right of User::lbk_code : Unique identification code\nUsed for searching and transferring points
-note right of User::point_balance : Current available points\nUpdated through transfer transactions
-note right of Transfer::status : Transfer status\nValues: completed, failed, pending
+note top of Transfer
+  Transaction audit log
+  - Immutable transfer records
+  - Links sender and receiver
+  - Complete transfer history
+end note
+
+note right of User::"lbk_code"
+  Unique identification code\nUsed for searching and transferring points
+end note
+
+note right of User::point_balance
+  Current available points\nUpdated through transfer transactions
+end note
+
+note right of Transfer::status
+  Transfer status\nValues: completed, failed, pending
+end note
 
 @enduml
 ```
