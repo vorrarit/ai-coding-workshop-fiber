@@ -1,0 +1,454 @@
+basePath: /
+definitions:
+  models.ErrorResponse:
+    properties:
+      error:
+        type: string
+    type: object
+  models.HelloResponse:
+    properties:
+      message:
+        type: string
+    type: object
+  models.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  models.LoginResponse:
+    properties:
+      token:
+        type: string
+      user:
+        $ref: '#/definitions/models.User'
+    type: object
+  models.PointBalanceResponse:
+    properties:
+      first_name:
+        type: string
+      last_name:
+        type: string
+      lbk_code:
+        type: string
+      point_balance:
+        type: integer
+    type: object
+  models.RegisterRequest:
+    properties:
+      dob:
+        description: 'Format: "2006-01-02"'
+        type: string
+      email:
+        type: string
+      first_name:
+        type: string
+      last_name:
+        type: string
+      password:
+        minLength: 6
+        type: string
+      phone_number:
+        type: string
+    required:
+    - email
+    - first_name
+    - last_name
+    - password
+    type: object
+  models.Transfer:
+    properties:
+      amount:
+        type: integer
+      created_at:
+        type: string
+      from_user:
+        $ref: '#/definitions/models.User'
+      from_user_id:
+        type: integer
+      id:
+        type: integer
+      message:
+        type: string
+      status:
+        description: completed, failed, pending
+        type: string
+      to_user:
+        $ref: '#/definitions/models.User'
+      to_user_id:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  models.TransferHistoryResponse:
+    properties:
+      count:
+        type: integer
+      transfers:
+        items:
+          $ref: '#/definitions/models.Transfer'
+        type: array
+    type: object
+  models.TransferRequest:
+    properties:
+      amount:
+        minimum: 1
+        type: integer
+      message:
+        type: string
+      to_lbk_code:
+        type: string
+    required:
+    - amount
+    - to_lbk_code
+    type: object
+  models.TransferResponse:
+    properties:
+      amount:
+        type: integer
+      from_user:
+        properties:
+          first_name:
+            type: string
+          last_name:
+            type: string
+          lbk_code:
+            type: string
+        type: object
+      message:
+        type: string
+      status:
+        type: string
+      to_user:
+        properties:
+          first_name:
+            type: string
+          last_name:
+            type: string
+          lbk_code:
+            type: string
+        type: object
+      transfer_id:
+        type: integer
+    type: object
+  models.User:
+    properties:
+      created_at:
+        type: string
+      dob:
+        type: string
+      email:
+        type: string
+      first_name:
+        type: string
+      id:
+        type: integer
+      last_name:
+        type: string
+      lbk_code:
+        description: LBK identification code
+        type: string
+      phone_number:
+        type: string
+      point_balance:
+        description: Point balance
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  models.UserSearchResponse:
+    properties:
+      first_name:
+        type: string
+      last_name:
+        type: string
+      lbk_code:
+        type: string
+    type: object
+host: localhost:3000
+info:
+  contact:
+    email: support@example.com
+    name: API Support
+  description: A clean, maintainable Go REST API server built with Fiber framework,
+    featuring user authentication and point transfer system
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  termsOfService: http://swagger.io/terms/
+  title: Fiber API Server
+  version: "1.0"
+paths:
+  /api/hello:
+    get:
+      consumes:
+      - application/json
+      description: Get hello world message
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.HelloResponse'
+      summary: Hello World
+      tags:
+      - Health
+  /health:
+    get:
+      consumes:
+      - application/json
+      description: Check if the server is healthy
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Health Check
+      tags:
+      - Health
+  /login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate user and return JWT token
+      parameters:
+      - description: User login credentials
+        in: body
+        name: credentials
+        required: true
+        schema:
+          $ref: '#/definitions/models.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.LoginResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: User Login
+      tags:
+      - Authentication
+  /me:
+    get:
+      consumes:
+      - application/json
+      description: Get authenticated user's profile information
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.User'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get User Profile
+      tags:
+      - User
+  /points/balance:
+    get:
+      consumes:
+      - application/json
+      description: Get authenticated user's point balance
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.PointBalanceResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Point Balance
+      tags:
+      - User
+  /points/history:
+    get:
+      consumes:
+      - application/json
+      description: Get transfer history for authenticated user (both sent and received
+        transfers)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.TransferHistoryResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Transfer History
+      tags:
+      - Transfer
+  /points/transfer:
+    post:
+      consumes:
+      - application/json
+      description: Transfer points from authenticated user to another user
+      parameters:
+      - description: Transfer details
+        in: body
+        name: transfer
+        required: true
+        schema:
+          $ref: '#/definitions/models.TransferRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.TransferResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Transfer Points
+      tags:
+      - Transfer
+  /register:
+    post:
+      consumes:
+      - application/json
+      description: Register a new user account
+      parameters:
+      - description: User registration details
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/models.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.LoginResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: User Registration
+      tags:
+      - Authentication
+  /users/search:
+    get:
+      consumes:
+      - application/json
+      description: Find a user by their LBK identification code
+      parameters:
+      - description: LBK identification code
+        in: query
+        name: lbk_code
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.UserSearchResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Search User by LBK Code
+      tags:
+      - User
+schemes:
+- http
+- https
+securityDefinitions:
+  BearerAuth:
+    description: Type "Bearer" followed by a space and JWT token.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

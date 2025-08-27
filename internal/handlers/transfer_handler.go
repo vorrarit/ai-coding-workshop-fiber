@@ -18,6 +18,19 @@ func NewTransferHandler(transferService *services.TransferService) *TransferHand
 }
 
 // Transfer points endpoint
+// @Summary Transfer Points
+// @Description Transfer points from authenticated user to another user
+// @Tags Transfer
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param transfer body models.TransferRequest true "Transfer details"
+// @Success 200 {object} models.TransferResponse
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 404 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /points/transfer [post]
 func (h *TransferHandler) TransferPoints(c *fiber.Ctx) error {
 	userID := c.Locals("userID").(uint)
 
@@ -49,6 +62,16 @@ func (h *TransferHandler) TransferPoints(c *fiber.Ctx) error {
 }
 
 // Get transfer history endpoint
+// @Summary Get Transfer History
+// @Description Get transfer history for authenticated user (both sent and received transfers)
+// @Tags Transfer
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} models.TransferHistoryResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /points/history [get]
 func (h *TransferHandler) GetTransferHistory(c *fiber.Ctx) error {
 	userID := c.Locals("userID").(uint)
 

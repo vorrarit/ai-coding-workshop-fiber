@@ -18,6 +18,17 @@ func NewUserHandler(userService *services.UserService) *UserHandler {
 }
 
 // Get user profile endpoint
+// @Summary Get User Profile
+// @Description Get authenticated user's profile information
+// @Tags User
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} models.User
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 404 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /me [get]
 func (h *UserHandler) GetMe(c *fiber.Ctx) error {
 	userID := c.Locals("userID").(uint)
 
@@ -33,6 +44,17 @@ func (h *UserHandler) GetMe(c *fiber.Ctx) error {
 }
 
 // Get point balance endpoint
+// @Summary Get Point Balance
+// @Description Get authenticated user's point balance
+// @Tags User
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} models.PointBalanceResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 404 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /points/balance [get]
 func (h *UserHandler) GetPointBalance(c *fiber.Ctx) error {
 	userID := c.Locals("userID").(uint)
 
@@ -55,6 +77,19 @@ func (h *UserHandler) GetPointBalance(c *fiber.Ctx) error {
 }
 
 // Search user by LBK code endpoint
+// @Summary Search User by LBK Code
+// @Description Find a user by their LBK identification code
+// @Tags User
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param lbk_code query string true "LBK identification code"
+// @Success 200 {object} models.UserSearchResponse
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 404 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /users/search [get]
 func (h *UserHandler) SearchUserByLBK(c *fiber.Ctx) error {
 	lbkCode := c.Query("lbk_code")
 	if lbkCode == "" {

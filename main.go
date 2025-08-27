@@ -10,7 +10,26 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	fiberSwagger "github.com/swaggo/fiber-swagger"
+
+	_ "fiber-api/docs" // Import docs for swagger
 )
+
+// @title Fiber API Server
+// @version 1.0
+// @description A clean, maintainable Go REST API server built with Fiber framework, featuring user authentication and point transfer system
+// @termsOfService http://swagger.io/terms/
+// @contact.name API Support
+// @contact.email support@example.com
+// @license.name MIT
+// @license.url https://opensource.org/licenses/MIT
+// @host localhost:3000
+// @BasePath /
+// @schemes http https
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Type "Bearer" followed by a space and JWT token.
 
 func main() {
 	// Load configuration
@@ -39,6 +58,9 @@ func main() {
 
 	// Initialize JWT middleware
 	jwtMiddleware := middleware.JWTMiddleware(cfg.JWTSecret)
+
+	// Swagger documentation
+	app.Get("/swagger/*", fiberSwagger.WrapHandler)
 
 	// Public routes
 	app.Get("/api/hello", healthHandler.Hello)
