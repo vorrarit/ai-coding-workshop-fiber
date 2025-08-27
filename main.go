@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -23,15 +24,31 @@ var db *gorm.DB
 
 // User model
 type User struct {
-	ID          uint      `json:"id" gorm:"primarykey"`
-	Email       string    `json:"email" gorm:"unique;not null"`
-	Password    string    `json:"-" gorm:"not null"` // "-" excludes from JSON
-	FirstName   string    `json:"first_name" gorm:"not null"`
-	LastName    string    `json:"last_name" gorm:"not null"`
-	PhoneNumber string    `json:"phone_number"`
-	DOB         time.Time `json:"dob"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID           uint      `json:"id" gorm:"primarykey"`
+	Email        string    `json:"email" gorm:"unique;not null"`
+	Password     string    `json:"-" gorm:"not null"` // "-" excludes from JSON
+	FirstName    string    `json:"first_name" gorm:"not null"`
+	LastName     string    `json:"last_name" gorm:"not null"`
+	PhoneNumber  string    `json:"phone_number"`
+	DOB          time.Time `json:"dob"`
+	LBKCode      string    `json:"lbk_code" gorm:"unique;not null"` // LBK identification code
+	PointBalance uint      `json:"point_balance" gorm:"default:0"`  // Point balance
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+// Transfer model for point transfers
+type Transfer struct {
+	ID         uint      `json:"id" gorm:"primarykey"`
+	FromUserID uint      `json:"from_user_id" gorm:"not null"`
+	ToUserID   uint      `json:"to_user_id" gorm:"not null"`
+	FromUser   User      `json:"from_user" gorm:"foreignKey:FromUserID"`
+	ToUser     User      `json:"to_user" gorm:"foreignKey:ToUserID"`
+	Amount     uint      `json:"amount" gorm:"not null"`
+	Message    string    `json:"message"`
+	Status     string    `json:"status" gorm:"default:'completed'"` // completed, failed, pending
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 // Request structures
@@ -49,6 +66,12 @@ type LoginRequest struct {
 	Password string `json:"password" validate:"required"`
 }
 
+type TransferRequest struct {
+	ToLBKCode string `json:"to_lbk_code" validate:"required"`
+	Amount    uint   `json:"amount" validate:"required,min=1"`
+	Message   string `json:"message"`
+}
+
 // Response structures
 type HelloResponse struct {
 	Message string `json:"message"`
@@ -61,6 +84,36 @@ type LoginResponse struct {
 
 type ErrorResponse struct {
 	Error string `json:"error"`
+}
+
+type PointBalanceResponse struct {
+	LBKCode      string `json:"lbk_code"`
+	PointBalance uint   `json:"point_balance"`
+	FirstName    string `json:"first_name"`
+	LastName     string `json:"last_name"`
+}
+
+type TransferResponse struct {
+	TransferID uint   `json:"transfer_id"`
+	Message    string `json:"message"`
+	FromUser   struct {
+		LBKCode   string `json:"lbk_code"`
+		FirstName string `json:"first_name"`
+		LastName  string `json:"last_name"`
+	} `json:"from_user"`
+	ToUser struct {
+		LBKCode   string `json:"lbk_code"`
+		FirstName string `json:"first_name"`
+		LastName  string `json:"last_name"`
+	} `json:"to_user"`
+	Amount uint   `json:"amount"`
+	Status string `json:"status"`
+}
+
+type UserSearchResponse struct {
+	LBKCode   string `json:"lbk_code"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
 }
 
 // JWT Claims
@@ -79,10 +132,18 @@ func initDatabase() {
 	}
 
 	// Auto migrate the schema
-	err = db.AutoMigrate(&User{})
+	err = db.AutoMigrate(&User{}, &Transfer{})
 	if err != nil {
 		log.Fatal("Failed to migrate database:", err)
 	}
+}
+
+// Generate LBK code
+func generateLBKCode() string {
+	// Generate a random 6-digit number for LBK code
+	// In production, you might want a more sophisticated generation logic
+	timestamp := time.Now().Unix()
+	return fmt.Sprintf("LBK%06d", timestamp%1000000)
 }
 
 // Hash password
@@ -181,12 +242,14 @@ func register(c *fiber.Ctx) error {
 
 	// Create user
 	user := User{
-		Email:       req.Email,
-		Password:    hashedPassword,
-		FirstName:   req.FirstName,
-		LastName:    req.LastName,
-		PhoneNumber: req.PhoneNumber,
-		DOB:         dob,
+		Email:        req.Email,
+		Password:     hashedPassword,
+		FirstName:    req.FirstName,
+		LastName:     req.LastName,
+		PhoneNumber:  req.PhoneNumber,
+		DOB:          dob,
+		LBKCode:      generateLBKCode(),
+		PointBalance: 1000, // Give new users 1000 points to start
 	}
 
 	if err := db.Create(&user).Error; err != nil {
@@ -247,6 +310,181 @@ func getMe(c *fiber.Ctx) error {
 	return c.JSON(user)
 }
 
+// Get point balance endpoint
+func getPointBalance(c *fiber.Ctx) error {
+	userID := c.Locals("userID").(uint)
+
+	var user User
+	if err := db.Select("lbk_code, point_balance, first_name, last_name").First(&user, userID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(404).JSON(ErrorResponse{Error: "User not found"})
+		}
+		return c.Status(500).JSON(ErrorResponse{Error: "Database error"})
+	}
+
+	response := PointBalanceResponse{
+		LBKCode:      user.LBKCode,
+		PointBalance: user.PointBalance,
+		FirstName:    user.FirstName,
+		LastName:     user.LastName,
+	}
+
+	return c.JSON(response)
+}
+
+// Search user by LBK code endpoint
+func searchUserByLBK(c *fiber.Ctx) error {
+	lbkCode := c.Query("lbk_code")
+	if lbkCode == "" {
+		return c.Status(400).JSON(ErrorResponse{Error: "lbk_code query parameter is required"})
+	}
+
+	var user User
+	if err := db.Select("lbk_code, first_name, last_name").Where("lbk_code = ?", lbkCode).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(404).JSON(ErrorResponse{Error: "User not found"})
+		}
+		return c.Status(500).JSON(ErrorResponse{Error: "Database error"})
+	}
+
+	response := UserSearchResponse{
+		LBKCode:   user.LBKCode,
+		FirstName: user.FirstName,
+		LastName:  user.LastName,
+	}
+
+	return c.JSON(response)
+}
+
+// Transfer points endpoint
+func transferPoints(c *fiber.Ctx) error {
+	userID := c.Locals("userID").(uint)
+
+	var req TransferRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(ErrorResponse{Error: "Invalid request body"})
+	}
+
+	// Basic validation
+	if req.ToLBKCode == "" || req.Amount == 0 {
+		return c.Status(400).JSON(ErrorResponse{Error: "to_lbk_code and amount are required"})
+	}
+
+	// Start transaction
+	tx := db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Get sender user
+	var fromUser User
+	if err := tx.First(&fromUser, userID).Error; err != nil {
+		tx.Rollback()
+		return c.Status(500).JSON(ErrorResponse{Error: "Failed to get sender information"})
+	}
+
+	// Check if sender has enough points
+	if fromUser.PointBalance < req.Amount {
+		tx.Rollback()
+		return c.Status(400).JSON(ErrorResponse{Error: "Insufficient points"})
+	}
+
+	// Find recipient user
+	var toUser User
+	if err := tx.Where("lbk_code = ?", req.ToLBKCode).First(&toUser).Error; err != nil {
+		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(404).JSON(ErrorResponse{Error: "Recipient user not found"})
+		}
+		return c.Status(500).JSON(ErrorResponse{Error: "Database error"})
+	}
+
+	// Check if not transferring to self
+	if fromUser.ID == toUser.ID {
+		tx.Rollback()
+		return c.Status(400).JSON(ErrorResponse{Error: "Cannot transfer points to yourself"})
+	}
+
+	// Update balances
+	if err := tx.Model(&fromUser).Update("point_balance", fromUser.PointBalance-req.Amount).Error; err != nil {
+		tx.Rollback()
+		return c.Status(500).JSON(ErrorResponse{Error: "Failed to update sender balance"})
+	}
+
+	if err := tx.Model(&toUser).Update("point_balance", toUser.PointBalance+req.Amount).Error; err != nil {
+		tx.Rollback()
+		return c.Status(500).JSON(ErrorResponse{Error: "Failed to update recipient balance"})
+	}
+
+	// Create transfer record
+	transfer := Transfer{
+		FromUserID: fromUser.ID,
+		ToUserID:   toUser.ID,
+		Amount:     req.Amount,
+		Message:    req.Message,
+		Status:     "completed",
+	}
+
+	if err := tx.Create(&transfer).Error; err != nil {
+		tx.Rollback()
+		return c.Status(500).JSON(ErrorResponse{Error: "Failed to create transfer record"})
+	}
+
+	// Commit transaction
+	if err := tx.Commit().Error; err != nil {
+		return c.Status(500).JSON(ErrorResponse{Error: "Failed to complete transfer"})
+	}
+
+	// Prepare response
+	response := TransferResponse{
+		TransferID: transfer.ID,
+		Message:    "Transfer completed successfully",
+		FromUser: struct {
+			LBKCode   string `json:"lbk_code"`
+			FirstName string `json:"first_name"`
+			LastName  string `json:"last_name"`
+		}{
+			LBKCode:   fromUser.LBKCode,
+			FirstName: fromUser.FirstName,
+			LastName:  fromUser.LastName,
+		},
+		ToUser: struct {
+			LBKCode   string `json:"lbk_code"`
+			FirstName string `json:"first_name"`
+			LastName  string `json:"last_name"`
+		}{
+			LBKCode:   toUser.LBKCode,
+			FirstName: toUser.FirstName,
+			LastName:  toUser.LastName,
+		},
+		Amount: req.Amount,
+		Status: "completed",
+	}
+
+	return c.JSON(response)
+}
+
+// Get transfer history endpoint
+func getTransferHistory(c *fiber.Ctx) error {
+	userID := c.Locals("userID").(uint)
+
+	var transfers []Transfer
+	if err := db.Preload("FromUser").Preload("ToUser").
+		Where("from_user_id = ? OR to_user_id = ?", userID, userID).
+		Order("created_at DESC").
+		Limit(50). // Limit to last 50 transfers
+		Find(&transfers).Error; err != nil {
+		return c.Status(500).JSON(ErrorResponse{Error: "Failed to get transfer history"})
+	}
+
+	return c.JSON(fiber.Map{
+		"transfers": transfers,
+		"count":     len(transfers),
+	})
+}
+
 func main() {
 	// Initialize database
 	initDatabase()
@@ -285,6 +523,14 @@ func main() {
 
 	// Protected endpoints
 	app.Get("/me", jwtMiddleware, getMe)
+	app.Get("/points/balance", jwtMiddleware, getPointBalance)
+	app.Get("/users/search", jwtMiddleware, searchUserByLBK)
+	app.Post("/points/transfer", jwtMiddleware, transferPoints)
+	app.Get("/points/history", jwtMiddleware, getTransferHistory)
+	app.Get("/point-balance", jwtMiddleware, getPointBalance)
+	app.Get("/search-user", jwtMiddleware, searchUserByLBK)
+	app.Post("/transfer-points", jwtMiddleware, transferPoints)
+	app.Get("/transfer-history", jwtMiddleware, getTransferHistory)
 
 	// Start server on port 3000
 	log.Printf("Server starting on port 3000...")
